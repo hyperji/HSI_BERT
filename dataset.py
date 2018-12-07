@@ -413,17 +413,13 @@ def zeropad_to_max_len(data, max_len = 121):
 class Data_Generator(object):
 
     def __init__(self, hsi, y, use_coords, batch_size = 24,
-                 selection_rules = None, pitch_size = 11,
-                 r = 12, length = 10, shuffle = True,
+                 selection_rules = None, shuffle = True,
                  till_end = False, max_len = 121):
         self.hsi = hsi
         self.y = y
         self.use_coords = use_coords
         self.batch_size = batch_size
         self.selection_rules = selection_rules
-        self.pitch_size = pitch_size
-        self.r = r
-        self.length = length
         self.shuffle = shuffle
         self.till_end = till_end
         self.max_len = max_len
@@ -459,13 +455,11 @@ class Data_Generator(object):
 
 
     def __data_generation(self, indexes):
-        region_type = "rect"
+        region = "rect 11"
         coords = self.use_coords[indexes]
         if self.selection_rules is not None:
-            region_type = np.random.choice(self.selection_rules)
-        X_batch = Grammar(self.hsi, coords, method=region_type,
-                          pitch_size=self.pitch_size, r=self.r,
-                          length=self.length)
+            region = np.random.choice(self.selection_rules)
+        X_batch = Grammar(self.hsi, coords, method=region)
         try:
             y_batch = self.y[coords[:, 0], coords[:, 1]]
         except:

@@ -274,25 +274,32 @@ def select_line(img, target_coords, length = 5, mod = "h"):
     return np.concatenate(lines, axis=0)
 
 
-def Grammar(img, tgt_coords, method = "rect", pitch_size = None, r = None, length = None):
-    if method == "rect":
-        assert (pitch_size is not None)
-        data = select_rect(img, tgt_coords,pitch_size=pitch_size)
-        #data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
-    elif method == 'round':
-        assert (r is not None)
-        data = select_round(img, tgt_coords, r=r)
-    elif method == "dot":
+def Grammar(img, tgt_coords, method = "rect 11"):
+    try:
+        region_type , param = method.split()
+        param = int(param)
+    except:
+        region_type = method
+    if region_type == "rect":
+        assert (param is not None)
+        data = select_rect(img, tgt_coords,pitch_size=param)
+        data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
+    elif region_type == 'round':
+        assert (param is not None)
+        data = select_round(img, tgt_coords, r=param)
+    elif region_type == "dot":
         data = select_rect(img, tgt_coords, pitch_size = 1)
         data = np.reshape(data, [data.shape[0], data.shape[1] * data.shape[2], data.shape[3]])
-    elif method == 'hl':
-        assert (length is not None)
-        data = select_line(img, tgt_coords, length=length, mod="h")
-    elif method == 'vl':
-        data = select_line(img, tgt_coords, length=length, mod="v")
-    elif method =='cross':
-        datah = select_line(img, tgt_coords, length=length, mod="h")
-        datav = select_line(img, tgt_coords, length=length, mod="v")
+    elif region_type == 'hl':
+        assert (param is not None)
+        data = select_line(img, tgt_coords, length=param, mod="h")
+    elif region_type == 'vl':
+        assert (param is not None)
+        data = select_line(img, tgt_coords, length=param, mod="v")
+    elif region_type =='cross':
+        assert (param is not None)
+        datah = select_line(img, tgt_coords, length=param, mod="h")
+        datav = select_line(img, tgt_coords, length=param, mod="v")
         data = np.concatenate([datah, datav], axis=1)
     return data
 
