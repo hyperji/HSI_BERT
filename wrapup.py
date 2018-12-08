@@ -16,7 +16,7 @@ from sklearn import preprocessing
 from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score, confusion_matrix
 import tensorflow as tf
 import os
-from grammar import Grammar, standartizeData, rotation_and_flip, zmm_random_flip
+from grammar import Grammar, standartizeData, rotation_and_flip, zmm_random_flip, padWithZeros
 
 selection_rules = ["rect 11", "rect 9", "rect 7", "round 4", "round 5", "round 6"]
 test_region = "rect 11"
@@ -95,6 +95,10 @@ def main():
     #X_train, y_train = oversampleWeakClasses(X_train, y_train)
     X = standartizeData(X)
     #X_train, y_train, X_test, y_test = build_data_v2(X, y)
+
+    margin = 6
+    X = padWithZeros(X, margin=margin)
+
     if arg.dataset == "Houston":
         num_classes = 15
     elif used_labels is not None:
@@ -134,6 +138,8 @@ def main():
             if len(X_vali_shape) == 4:
                 X_vali = np.reshape(X_vali, [X_vali_shape[0], X_vali_shape[1] * X_vali_shape[2], X_vali_shape[3]])
         """
+        train_coords = train_coords + margin
+        test_coords = test_coords + margin
         X_test = Grammar(X, test_coords, method=test_region)
 
 

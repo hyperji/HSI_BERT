@@ -56,28 +56,27 @@ def select_round(img, target_coords, r):
     sentences = np.concatenate(sentences, axis=0)
     return sentences
 
+def select_round_no_pad(img, target_coords, r):
+    if len(target_coords.shape) == 1:
+        target_coords = np.expand_dims(target_coords, axis=0)
+    shape = img.shape
+    height = shape[0]
+    width = shape[1]
+    sentences = []
+    for ntc in target_coords:
+        mask = np.zeros((height, width), dtype=np.bool)
+        y, x = np.ogrid[-ntc[0]:height - ntc[0], -ntc[1]:width - ntc[1]]
+        m = x * x + y * y <= r * r
+        mask = np.logical_or(mask, m)
+        sentences.append(np.expand_dims(img[mask], axis=0))
+    sentences = np.concatenate(sentences, axis=0)
+    return sentences
 
-def row_first_rule(points):
-    points_array = np.array(points)
-    return points_array[points_array[:, 0].argsort()]
 
-
-def column_first_rule(points):
-    points_array = np.array(points)
-    return points_array[points_array[:, 1].argsort()]
-
-def sentence_ininial_embedding(image_array, points_array):
-    return image_array[points_array[:,0], points_array[:,1], :]
 
 #  pad zeros to dataset
 def padWithZeros(X, margin=2):
-    newX = np.zeros((X.shape[0] + 2 * margin, X.shape[1] + 2* margin,
-                     X.shape[2]))
-    x_offset = margin
-    y_offset = margin
-    newX[x_offset:X.shape[0] + x_offset, y_offset:X.shape[1] +
-         y_offset, :] = X
-    return newX
+    return np.pad(X, [(margin, margin), (margin, margin), (0,0)], mode="constant")
 
 
 #  apply PCA preprocessing for data sets
@@ -260,6 +259,19 @@ def select_rect(hsi, target_coords, pitch_size = 5):
 
     return np.concatenate(pitches, axis=0) #, pitch_coords
 
+
+def select_rect_no_pad(hsi, target_coords, pitch_size = 5):
+    if len(target_coords.shape) == 1:
+        target_coords = np.expand_dims(target_coords, axis=0)
+    margin = int((pitch_size - 1) / 2)
+
+    pitches = [hsi[target_coords[i,0] - margin:target_coords[i,0] + margin + 1, target_coords[i,1]-margin
+                                                   :target_coords[i,1] + margin + 1] for i in range(len(target_coords))]
+    pitches = [np.expand_dims(pitch, axis=0) for pitch in pitches]
+
+    return np.concatenate(pitches, axis=0)
+
+
 def select_line(img, target_coords, length = 5, mod = "h"):
     if len(target_coords.shape) == 1:
         target_coords = np.expand_dims(target_coords, axis=0)
@@ -274,6 +286,20 @@ def select_line(img, target_coords, length = 5, mod = "h"):
     return np.concatenate(lines, axis=0)
 
 
+
+def select_line_no_pad(img, target_coords, length = 5, mod = "h"):
+    if len(target_coords.shape) == 1:
+        target_coords = np.expand_dims(target_coords, axis=0)
+    margin = int((length - 1) / 2)
+    if mod == "h":
+        lines = [img[target_coords[i, 0], target_coords[i, 1] - margin:target_coords[i, 1] + margin + 1] for i in range(len(target_coords))]
+    elif mod =="v":
+        lines = [img[target_coords[i, 0] - margin:target_coords[i,0]+margin+1, target_coords[i,1]] for i in range(len(target_coords))]
+    lines = [np.expand_dims(line, axis=0) for line in lines]
+    return np.concatenate(lines, axis=0)
+
+
+
 def Grammar(img, tgt_coords, method = "rect 11"):
     try:
         region_type , param = method.split()
@@ -282,24 +308,24 @@ def Grammar(img, tgt_coords, method = "rect 11"):
         region_type = method
     if region_type == "rect":
         assert (param is not None)
-        data = select_rect(img, tgt_coords,pitch_size=param)
+        data = select_rect_no_pad(img, tgt_coords,pitch_size=param)
         data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
     elif region_type == 'round':
         assert (param is not None)
-        data = select_round(img, tgt_coords, r=param)
+        data = select_round_no_pad(img, tgt_coords, r=param)
     elif region_type == "dot":
-        data = select_rect(img, tgt_coords, pitch_size = 1)
+        data = select_rect_no_pad(img, tgt_coords, pitch_size = 1)
         data = np.reshape(data, [data.shape[0], data.shape[1] * data.shape[2], data.shape[3]])
     elif region_type == 'hl':
         assert (param is not None)
-        data = select_line(img, tgt_coords, length=param, mod="h")
+        data = select_line_no_pad(img, tgt_coords, length=param, mod="h")
     elif region_type == 'vl':
         assert (param is not None)
-        data = select_line(img, tgt_coords, length=param, mod="v")
+        data = select_line_no_pad(img, tgt_coords, length=param, mod="v")
     elif region_type =='cross':
         assert (param is not None)
-        datah = select_line(img, tgt_coords, length=param, mod="h")
-        datav = select_line(img, tgt_coords, length=param, mod="v")
+        datah = select_line_no_pad(img, tgt_coords, length=param, mod="h")
+        datav = select_line_no_pad(img, tgt_coords, length=param, mod="v")
         data = np.concatenate([datah, datav], axis=1)
     return data
 
