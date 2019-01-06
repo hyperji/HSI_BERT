@@ -12,6 +12,9 @@ import tensorflow as tf
 import gc
 from contextlib import contextmanager
 import time
+from PIL import Image
+import collections
+
 
 @contextmanager
 def timer(name):
@@ -153,3 +156,78 @@ def euclidean_distance(a, b):
     :return: a scale
     """
     return np.sqrt(np.sum((a-b)**2))
+
+
+def get_color_mask(imgarray, color):
+    masks = imgarray == color
+    sum_masks = np.sum(masks, axis=-1)
+    smasks = sum_masks == 3
+    return smasks
+
+
+
+def stripe_white_bbox(imgarray):
+    target = np.array([255, 255, 255], dtype='uint8')
+    masks = imgarray == target
+    sum_masks = np.sum(masks, axis=-1)
+    smasks = sum_masks != 3
+    shape = [np.max(np.sum(smasks,axis=0)), np.max(np.sum(smasks,axis=1))]
+    print(shape)
+    smasks = smasks.flatten()
+    imgarray = imgarray.reshape([-1, 3])
+    shape.append(3)
+    imgarray = imgarray[smasks].reshape(shape)
+    return imgarray
+
+def get_cmap_from_array(array, tgt_shape, labels, coords):
+    img = Image.fromarray(array)
+    img = img.resize(tgt_shape)
+    img_array = np.array(img)
+    img_colors = img_array[coords[:,0], coords[:,1]]
+    print(img_colors.shape)
+    all_colors = []
+    unique_labels = np.unique(labels)
+    for i in unique_labels:
+        mask = labels == i
+        colors = img_colors[mask]
+        all_colors.append(colors)
+    return all_colors
+
+def get_label_form_cmap(array, tgt_shape, cmap, all_coords):
+    #yy = np.zeros(tgt_shape)
+    preds = np.zeros(all_coords.shape[0])
+    img = Image.fromarray(array)
+    img = img.resize(tgt_shape)
+    img_array = np.array(img)
+    img_colors = img_array[all_coords[:, 0], all_coords[:, 1]]
+    for ind, color in enumerate(cmap):
+        mask = get_color_mask(img_colors, color)
+        preds[mask] = ind
+    return preds
+
+
+
+
+
+
+
+
+def style_convert(st_array, bias_array):
+    st = st_array.reshape([-1, 3])
+    bi = bias_array.reshape([-1, 3])
+    uni_st = collections.OrderedDict()
+    uni_bi = collections.OrderedDict()
+    for ii in st:
+        strii = str(ii)
+        if strii not in uni_st:
+            uni_st[strii] = ii
+    for jj in bi:
+        strjj = str(jj)
+        if strjj not in uni_bi:
+            uni_bi[strjj] = jj
+    uni_st_vals = list(uni_st.values())
+    uni_bi_vals = list(uni_bi.values())
+    uni_st_vals = np.concatenate([np.expand_dims(val, axis=0) for val in uni_st_vals], axis=0) / 1
+    uni_bi_vals = np.concatenate([np.expand_dims(val, axis=0) for val in uni_bi_vals], axis=0) / 1
+
+    return uni_st_vals, uni_bi_vals

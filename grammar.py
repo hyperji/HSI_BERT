@@ -11,6 +11,10 @@ import random
 import scipy
 import copy
 from utils import get_coordinates_labels, timer, get_train_test
+from multiprocessing import Process
+import multiprocessing
+import math
+
 """
 def select_round_superpixel(target_point, radius = 2):
     start_point = tuple([target_point[0] - radius, target_point[1] - radius])
@@ -131,6 +135,100 @@ def transform_array(array, mode = 0, degree = None):
     noise = np.random.normal(0.0, 0.05, size=(array.shape))
     flipped_patch += noise
     return flipped_patch
+
+
+def rotate(array, degree):
+    transformed_array = scipy.ndimage.interpolation.rotate(array,
+                                                       degree, axes=(1, 0), reshape=False, output=None,
+                                                       order=3, mode='constant', cval=0.0, prefilter=False)
+    return transformed_array
+
+def add_noise(array):
+    noise = np.random.normal(0.0, 0.05, size=(array.shape))
+    return array + noise
+
+def flipud(array):
+    return np.flipud(array)
+
+
+def t0(array):
+    return array
+
+def t1(array):
+    return rotate(array, 90)
+
+def t2(array):
+    return rotate(array, 180)
+
+def t3(array):
+    return rotate(array, 270)
+
+def t4(array):
+
+    return flipud(t1(array))
+
+def t5(array):
+    return flipud(t2(array))
+
+def t6(array):
+    return flipud(t3(array))
+
+def t7(array):
+    return add_noise(t0(array))
+
+def t8(array):
+    return add_noise(t1(array))
+
+def t9(array):
+    return add_noise(t2(array))
+
+def t10(array):
+    return add_noise(t3(array))
+
+def t11(array):
+    return add_noise(t4(array))
+
+def t12(array):
+    return add_noise(t5(array))
+
+def t13(array):
+    return add_noise(t6(array))
+
+
+def transform(array):
+    switchs = [t0, t1, t2, t3, t4, t5, t6, t7,
+              t8, t9, t10, t11, t12, t13]
+    target_fun = np.random.choice(switchs)
+    return target_fun(array)
+
+def single_transform(array, index, size, return_dict):
+    print(index)
+    length = len(array)
+    size = int(math.ceil(length / size))
+    start = size * index
+    end = (index + 1) * size if (index + 1) * size < length else length
+    temp_array = array[start:end]
+    return_dict[index] = list(map(transform, temp_array))
+
+def parallel_tranform(array):
+    used_cpu = multiprocessing.cpu_count()
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    all_results = []
+    jobs = []
+    for i in range(used_cpu):
+        # p = Process(target=run, args=(all_smiles,all_labels, i, used_cpu, args.save_path))
+        p = Process(target=single_transform, args=(array, i, used_cpu, return_dict))
+        jobs.append(p)
+        p.start()
+
+    for proc in jobs:
+        proc.join()
+    for i in range(used_cpu):
+        all_results += return_dict[i]
+    all_results = [np.expand_dims(kk, axis=0) for kk in all_results]
+    return np.concatenate(all_results, axis=0)
+
 
 def fuse_samples(sampleA, sampleB, alpha, beta):
     """
@@ -309,6 +407,9 @@ def Grammar(img, tgt_coords, method = "rect 11"):
     if region_type == "rect":
         assert (param is not None)
         data = select_rect_no_pad(img, tgt_coords,pitch_size=param)
+        #data = list(map(transform, data))
+        #data = [np.expand_dims(dd, axis=0) for dd in data]
+        #data = np.concatenate(data, axis=0)
         data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
     elif region_type == 'round':
         assert (param is not None)

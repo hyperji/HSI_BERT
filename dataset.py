@@ -460,10 +460,16 @@ class Data_Generator(object):
         if self.selection_rules is not None:
             region = np.random.choice(self.selection_rules)
         X_batch = Grammar(self.hsi, coords, method=region)
+        X_batch_shape = X_batch.shape
         try:
             y_batch = self.y[coords[:, 0], coords[:, 1]]
         except:
             y_batch = self.y[indexes]
+
+        if len(X_batch_shape) == 4:
+            X_batch = np.reshape(X_batch, [X_batch_shape[0], X_batch_shape[1] * X_batch_shape[2], X_batch_shape[3]])
+            #X_test = np.reshape(X_t
+
         X_batch = zeropad_to_max_len(X_batch, max_len=self.max_len)
         return X_batch, y_batch
 

@@ -11,15 +11,15 @@ import argparse
 import scipy.io as scio
 from utils import get_train_test, get_coordinates_labels, AA_andEachClassAccuracy
 from module import KNN
-from dataset import Data_Generator
+from dataset import Data_Generator, zeropad_to_max_len
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score, confusion_matrix
 import tensorflow as tf
 import os
 from grammar import Grammar, standartizeData, rotation_and_flip, zmm_random_flip, padWithZeros
 
-selection_rules = ["rect 11", "rect 9", "rect 7", "round 4", "round 5", "round 6"]
-test_region = "rect 11"
+selection_rules = ["rect 5"]# "round 4", "round 5", "round 6"]
+
 
 def get_matrics(y_true, y_pred):
     oa = accuracy_score(y_pred=y_pred, y_true=y_true)
@@ -58,6 +58,7 @@ def get_args():
     parser.add_argument("--pool_size", type=int, default=3)
     parser.add_argument("--data_augment", type = bool, default=False)
     parser.add_argument("--max_len", type=int,default=121)
+    parser.add_argument("--test_region", type=str, default="rect 11")
 
     # 如: python xx.py --foo hello  > hello
     args = parser.parse_args()
@@ -124,25 +125,11 @@ def main():
         else:
             train_coords, train_labels = get_coordinates_labels(mask_train)
             test_coords, test_labels = get_coordinates_labels(mask_test)
-        """
-        X_train = Grammar(X, train_coords, method="rect 9")
-        vali_data = None
-        if arg.is_valid:
-            vali_coords = test_coords[-VAL_SIZE:]
-            vali_labels = test_labels[-VAL_SIZE:]
-            test_coords = test_coords[:-VAL_SIZE]
-            test_labels = test_labels[:-VAL_SIZE]
-            X_vali = Grammar(X, vali_coords, method="rect 9")
-            y_vali = vali_labels
-            X_vali_shape = X_vali.shape
-            if len(X_vali_shape) == 4:
-                X_vali = np.reshape(X_vali, [X_vali_shape[0], X_vali_shape[1] * X_vali_shape[2], X_vali_shape[3]])
-        """
         train_coords = train_coords + margin
         test_coords = test_coords + margin
-        X_test = Grammar(X, test_coords, method=test_region)
+        #X_test = Grammar(X, test_coords, method=arg.test_region)
 
-
+        #X_train = Grammar(X, train_coords, method="rect 11")
         y_train = train_labels
         y_test = test_labels
         """
@@ -150,17 +137,20 @@ def main():
             X_train, y_train = zmm_random_flip(X_train, y_train)  # rotation_and_flip(X_train, y_train)
             # X_train, y_train, X_test, y_test = build_data(X, y)
         X_train_shape = X_train.shape
-        X_test_shape = X_test.shape
+        #X_test_shape = X_test.shape
         if len(X_train_shape) == 4:
             X_train = np.reshape(X_train, [X_train_shape[0], X_train_shape[1] * X_train_shape[2], X_train_shape[3]])
-            X_test = np.reshape(X_test, [X_test_shape[0], X_test_shape[1] * X_test_shape[2], X_test_shape[3]])
-        """
+            #X_test = np.reshape(X_test, [X_test_shape[0], X_test_shape[1] * X_test_shape[2], X_test_shape[3]])
+
+        #X_test = zeropad_to_max_len(X_test, max_len=arg.max_len)
+        X_train = zeropad_to_max_len(X_train, max_len=arg.max_len)
+        
         for i in range(num_classes):
             print("num train and test in class %d is %d / %d" % (i, (y_train == i).sum(), (y_test == i).sum()))
         #print("num_train", X_train.shape[0])
-        print("num_test", X_test.shape[0])
+        #print("num_test", X_test.shape[0])
         print("num_classes", num_classes)
-
+        """
         train_generator = Data_Generator(X, y=y_train, use_coords=train_coords,
                                             batch_size=arg.batch_size,
                                             selection_rules=selection_rules,
@@ -170,7 +160,7 @@ def main():
 
         test_generator = Data_Generator(X, y=y_test, use_coords=test_coords,
                                         batch_size=1024,
-                                        selection_rules=selection_rules
+                                        selection_rules=[arg.test_region]
                                         ,shuffle=False,
                                         till_end=True, max_len=arg.max_len)
 
@@ -198,8 +188,14 @@ def main():
         if arg.save_model:
             if not os.path.exists(arg.save_path):
                 os.mkdir(arg.save_path)
-            save_full_path = arg.save_path+'/'+"best_model_%d"%repterm +'/'+"best_model_%d.ckpt"%repterm
+            save_full_path = arg.save_path+'/'+arg.dataset+"/model_%d_h%d_d%d"%(repterm, arg.num_head, arg.max_depth)+'/'+"model_%d_h%d_d%d.ckpt"%(repterm, arg.num_head, arg.max_depth)
+            model_path = arg.save_path+'/'+arg.dataset+"/model_%d_h%d_d%d"%(repterm, arg.num_head, arg.max_depth)
+            if not os.path.exists(model_path):
+                os.mkdir(model_path)
+            np.save(os.path.join(model_path,"train_coords.npy"), train_coords - margin)
+            np.save(os.path.join(model_path, "test_coords.npy"), test_coords - margin)
         #if arg.dataset == "Salinas":
+
         print("Fitting generator")
         model.fit_generator(train_generator,
                             nb_epochs = arg.n_epochs,
@@ -208,14 +204,14 @@ def main():
 
         #preds = model.predict_from_generator(test_generator)
         """
-        else:
-            print("Fitting normal data")
-            model.fit(X_train, y_train, batch_size=arg.batch_size,
+        print("Fitting normal data")
+        
+        model.fit(X_train, y_train, batch_size=arg.batch_size,
                       nb_epochs=arg.n_epochs,
                       log_every_n_samples=arg.log_every_n_samples,
                       save_path=save_full_path)
         """
-        preds = model.predict(X_test)
+        preds = model.predict_from_generator(test_generator)
         result = get_matrics(y_true=test_labels, y_pred=preds)
         oa = result['oa']
         aa = result["aa"]
@@ -244,7 +240,7 @@ def main():
         #if arg.dataset == "Salinas":
         #    preds = best_model.predict_from_generator(test_generator)
         #else:
-        preds = best_model.predict(X_test)
+        preds = best_model.predict_from_generator(test_generator)
         result = get_matrics(y_pred=preds, y_true=test_labels)
         oa = result['oa']
         aa = result["aa"]

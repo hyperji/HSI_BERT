@@ -65,13 +65,13 @@ class HSI_BERT(object):
                 masks = create_attention_mask_from_input_mask(self.x, masks)
             print("self.prembed", self.prembed)
             emb_in = self.x
-            #emb_in = embedding_postprocessor(emb_in, max_position_embeddings=200)
             if self.prembed:
                 print("#"*100)
                 emb_in = tf.layers.dense(emb_in, self.prembed_dim, activation=tf.tanh, use_bias=True)
                 #emb_in = feedforward(emb_in, [self.num_hidden, self.prembed_dim])
                 #emb_in = tf.layers.dropout(emb_in, rate=self.drop_rate)
                 #emb_in = layer_norm(emb_in)
+            #emb_in = embedding_postprocessor(emb_in, max_position_embeddings=200)
             print("my_emb_dim", emb_in.get_shape().as_list()[-1])
             #emb_dim = tf.shape(emb_in)[-1]
             emb_dim = emb_in.get_shape().as_list()[-1]
@@ -128,14 +128,19 @@ class HSI_BERT(object):
                 self.merged = tf.summary.merge_all()
             self.saver = tf.train.Saver()
 
-    def fit(self, X, y, X_vali = None, y_vali = None, batch_size = 24, nb_epochs = 10,
-                      log_every_n_samples = 50, save_path = None, patience = 10):
+    def fit(self, X, y, X_vali = None, y_vali = None, batch_size = 24,
+            nb_epochs = 10, log_every_n_samples = 50, save_path = None,
+            patience = 10, finetune = False):
         with self.graph.as_default():
-            init = tf.global_variables_initializer()
-            self.sess.run(init)
+            if not finetune:
+                init = tf.global_variables_initializer()
+                self.sess.run(init)
         least_mean_loss = 10000
         bad_round = 0
         num_batches = len(y) // batch_size
+        all_acc = []
+        all_ls = []
+        all_lr = []
         for epoch in range(nb_epochs):
             train_generator = simple_data_generator(X, y, batch_size=batch_size, shuffle=True)
 
@@ -144,13 +149,16 @@ class HSI_BERT(object):
                 my_feed_dict = {self.x: X_batch,
                                 self.y: y_batch.flatten(),
                                 }
-                _, preds, a, ls, ac, lr = self.sess.run([self.train_op, self.preds, self.attens, self.mean_loss, self.acc, self.learning_rate],
+                _, preds, a, ls, acc, lr = self.sess.run([self.train_op, self.preds, self.attens, self.mean_loss, self.acc, self.learning_rate],
                                               feed_dict=my_feed_dict)
+                all_acc.append(acc)
+                all_ls.append(ls)
+                all_lr.append(lr)
                 if (ind + 1) % log_every_n_samples == 0:
                     #print(ls, ac)
                     print('[epoch {}/{}, episode {}/{}] => loss: {:.5f}, acc: {:.5f}'.format(epoch + 1, nb_epochs,
                                                                                                  ind + 1,num_batches,
-                                                                                                 ls, ac))
+                                                                                                 ls, acc))
                     #print(classification_report(y_true=support.y.flatten(), y_pred=preds))
                     print("learning rate",lr)
                     #print(a[0][0].shape)
@@ -175,8 +183,17 @@ class HSI_BERT(object):
         if (X_vali is None) or (y_vali is None):
             if save_path:
                 self.save(save_path)
+        if save_path:
+            save_parent_path = os.path.split(save_path)[0]
+            all_acc = np.array(all_acc)
+            all_ls = np.array(all_ls)
+            all_lr = np.array(all_lr)
+            np.save(os.path.join(save_parent_path, "all_acc.npy"), all_acc)
+            np.save(os.path.join(save_parent_path, "all_ls.npy"), all_ls)
+            np.save(os.path.join(save_parent_path, "all_lr.npy"), all_lr)
 
 
+        """
         for layer in range(self.max_depth):
             fig, axs = plt.subplots(1, 4, figsize=(20, 10))
             print("Encoder Layer", layer + 1)
@@ -184,16 +201,23 @@ class HSI_BERT(object):
                 draw(a[layer][0][:,:,h],
                      range(25), range(25) if h == 0 else [], ax=axs[h])
             plt.show()
+        """
 
 
     def fit_generator(self, generator, vali_generator = None, nb_epochs = 10,
-                      log_every_n_samples = 50, save_path = None, patience = 10):
+                      log_every_n_samples = 50, save_path = None, patience = 10,
+                      finetune = False):
         with self.graph.as_default():
-            init = tf.global_variables_initializer()
-            self.sess.run(init)
+            if not finetune:
+                init = tf.global_variables_initializer()
+                self.sess.run(init)
         least_mean_loss = 10000
         bad_round = 0
         num_batches = len(generator)
+        all_acc = []
+        all_ls = []
+        all_lr = []
+
         for epoch in range(nb_epochs):
 
             for ind in range(num_batches):
@@ -203,13 +227,16 @@ class HSI_BERT(object):
                 my_feed_dict = {self.x: X_batch,
                                 self.y: y_batch.flatten(),
                                 }
-                _, preds, a, ls, ac, lr = self.sess.run([self.train_op, self.preds, self.attens, self.mean_loss, self.acc, self.learning_rate],
+                _, preds, a, ls, acc, lr = self.sess.run([self.train_op, self.preds, self.attens, self.mean_loss, self.acc, self.learning_rate],
                                               feed_dict=my_feed_dict)
+                all_acc.append(acc)
+                all_ls.append(ls)
+                all_lr.append(lr)
                 if (ind + 1) % log_every_n_samples == 0:
                     #print(ls, ac)
                     print('[epoch {}/{}, episode {}/{}] => loss: {:.5f}, acc: {:.5f}'.format(epoch + 1, nb_epochs,
                                                                                                  ind + 1,num_batches,
-                                                                                                 ls, ac))
+                                                                                                 ls, acc))
                     #print(classification_report(y_true=support.y.flatten(), y_pred=preds))
                     print("learning rate",lr)
                     #print(a[0][0].shape)
@@ -235,8 +262,16 @@ class HSI_BERT(object):
         if vali_generator is None:
             if save_path:
                 self.save(save_path)
+        if save_path:
+            save_parent_path = os.path.split(save_path)[0]
+            all_acc = np.array(all_acc)
+            all_ls = np.array(all_ls)
+            all_lr = np.array(all_lr)
+            np.save(os.path.join(save_parent_path, "all_acc.npy"), all_acc)
+            np.save(os.path.join(save_parent_path, "all_ls.npy"), all_ls)
+            np.save(os.path.join(save_parent_path, "all_lr.npy"), all_lr)
 
-
+        """
         for layer in range(self.max_depth):
             fig, axs = plt.subplots(1, 4, figsize=(20, 10))
             print("Encoder Layer", layer + 1)
@@ -244,6 +279,7 @@ class HSI_BERT(object):
                 draw(a[layer][0][:,:,h],
                      range(25), range(25) if h == 0 else [], ax=axs[h])
             plt.show()
+        """
 
     def predict(self, X):
         y_preds = []
@@ -370,8 +406,7 @@ class HSI_BERT(object):
         saver.restore(self.sess, tf.train.latest_checkpoint(new_path))
 
     def simple_pooler(self, data):
-        margin = int((self.max_len - 1) / 2)
-        return tf.squeeze(data[:, margin:margin+1, :], axis=1)
+        return tf.squeeze(data[:, 0, :], axis=1)
 
     def rect_pooler(self, data):
         data_shape = tf.shape(data)
