@@ -87,7 +87,7 @@ def attention(query, key, value, mask=None, dropout=None):
     p_attn = tf.nn.softmax(scores, axis=-1)
     print("p_atten", p_attn)
     if dropout is not None:
-        p_attn = tf.layers.dropout(p_attn)
+        p_attn = tf.layers.dropout(p_attn, rate=dropout)
     return tf.matmul(p_attn, value), p_attn
 
 

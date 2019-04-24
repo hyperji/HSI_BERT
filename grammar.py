@@ -410,7 +410,7 @@ def Grammar(img, tgt_coords, method = "rect 11"):
         #data = list(map(transform, data))
         #data = [np.expand_dims(dd, axis=0) for dd in data]
         #data = np.concatenate(data, axis=0)
-        data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
+        #data = np.reshape(data, [data.shape[0], data.shape[1]*data.shape[2], data.shape[3]])
     elif region_type == 'round':
         assert (param is not None)
         data = select_round_no_pad(img, tgt_coords, r=param)

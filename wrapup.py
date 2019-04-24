@@ -17,8 +17,9 @@ from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_s
 import tensorflow as tf
 import os
 from grammar import Grammar, standartizeData, rotation_and_flip, zmm_random_flip, padWithZeros
+from utils import timer
 
-selection_rules = ["rect 5"]# "round 4", "round 5", "round 6"]
+selection_rules = ["rect 11"]# "round 4", "round 5", "round 6"]
 
 
 def get_matrics(y_true, y_pred):
@@ -40,6 +41,7 @@ def get_args():
     parser.add_argument('--batch_size', type=int, default=128, help="num_batches")
     parser.add_argument("--num_head", type=int, default=10)
     parser.add_argument("--drop_rate", type=float, default=0.3)
+    parser.add_argument("--attention_dropout", type=float, default=0.3)
     parser.add_argument("--log_every_n_samples", type=int, default=5)
     parser.add_argument("--save_model", type=bool, default=True)
     parser.add_argument("--save_path", type=str, default="models")
@@ -129,10 +131,10 @@ def main():
         test_coords = test_coords + margin
         #X_test = Grammar(X, test_coords, method=arg.test_region)
 
-        #X_train = Grammar(X, train_coords, method="rect 11")
+        X_train = Grammar(X, train_coords, method="rect 11")
         y_train = train_labels
         y_test = test_labels
-        """
+
         if arg.data_augment:
             X_train, y_train = zmm_random_flip(X_train, y_train)  # rotation_and_flip(X_train, y_train)
             # X_train, y_train, X_test, y_test = build_data(X, y)
@@ -150,7 +152,7 @@ def main():
         #print("num_train", X_train.shape[0])
         #print("num_test", X_test.shape[0])
         print("num_classes", num_classes)
-        """
+
         train_generator = Data_Generator(X, y=y_train, use_coords=train_coords,
                                             batch_size=arg.batch_size,
                                             selection_rules=selection_rules,
@@ -171,6 +173,7 @@ def main():
                          num_head=arg.num_head,
                          num_hidden=arg.num_hidden,
                          drop_rate=arg.drop_rate,
+                         attention_dropout=arg.attention_dropout,
                          num_classes = num_classes,
                          start_learning_rate=arg.start_learning_rate,
                          prembed=arg.prembed,
@@ -195,9 +198,10 @@ def main():
             np.save(os.path.join(model_path,"train_coords.npy"), train_coords - margin)
             np.save(os.path.join(model_path, "test_coords.npy"), test_coords - margin)
         #if arg.dataset == "Salinas":
-
+        """
         print("Fitting generator")
-        model.fit_generator(train_generator,
+        with timer("Fitting Generator Completed"):
+            model.fit_generator(train_generator,
                             nb_epochs = arg.n_epochs,
                             log_every_n_samples = arg.log_every_n_samples,
                             save_path=save_full_path)
@@ -205,13 +209,14 @@ def main():
         #preds = model.predict_from_generator(test_generator)
         """
         print("Fitting normal data")
-        
-        model.fit(X_train, y_train, batch_size=arg.batch_size,
+        with timer("Fitting Normal Data Completed"):
+            model.fit(X_train, y_train, batch_size=arg.batch_size,
                       nb_epochs=arg.n_epochs,
                       log_every_n_samples=arg.log_every_n_samples,
                       save_path=save_full_path)
-        """
-        preds = model.predict_from_generator(test_generator)
+
+        with timer("Testing"):
+            preds = model.predict_from_generator(test_generator)
         result = get_matrics(y_true=test_labels, y_pred=preds)
         oa = result['oa']
         aa = result["aa"]
@@ -228,6 +233,7 @@ def main():
                          num_head=arg.num_head,
                          num_hidden=arg.num_hidden,
                          drop_rate=arg.drop_rate,
+                         attention_dropout=arg.attention_dropout,
                          num_classes = num_classes,
                          start_learning_rate=arg.start_learning_rate,
                          prembed=arg.prembed,

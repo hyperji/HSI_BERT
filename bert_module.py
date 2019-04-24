@@ -491,7 +491,8 @@ def embedding_postprocessor(input_tensor,
                                        position_broadcast_shape)
       output += position_embeddings
 
-  output = layer_norm_and_dropout(output, dropout_prob)
+  #output = layer_norm_and_dropout(output, dropout_prob)
+  #output = layer_norm(output)
   return output
 
 

@@ -26,12 +26,17 @@ def draw(data, x, y, ax):
 
 class HSI_BERT(object):
 
-    def __init__(self, max_len, n_channel, max_depth = 1, num_head = 5, num_hidden = 200, drop_rate = 0.3, num_classes = 16, start_learning_rate = 1e-3, prembed = False, prembed_dim = 50, masking = False, pooling = False, pool_size = 3):
+    def __init__(self, max_len, n_channel, max_depth = 1, num_head = 5,
+                 num_hidden = 200, drop_rate = 0.3, attention_dropout = 0.3,
+                 num_classes = 16, start_learning_rate = 1e-3, prembed = False,
+                 prembed_dim = 50, masking = False, pooling = False, pool_size = 3):
+
         self.max_len = max_len
         self.n_channel = n_channel
         self.max_depth = max_depth
         self.num_head = num_head
         self.drop_rate = drop_rate
+        self.attention_dropout = attention_dropout
         self.num_classes = num_classes
         self.graph = tf.Graph()
         self.start_learning_rate = start_learning_rate
@@ -66,12 +71,13 @@ class HSI_BERT(object):
             print("self.prembed", self.prembed)
             emb_in = self.x
             if self.prembed:
-                print("#"*100)
-                emb_in = tf.layers.dense(emb_in, self.prembed_dim, activation=tf.tanh, use_bias=True)
-                #emb_in = feedforward(emb_in, [self.num_hidden, self.prembed_dim])
+                #print("#"*100)
+                print("#prembed with positional embedding no bias")
+                emb_in = tf.layers.dense(emb_in, self.prembed_dim, activation=tf.tanh, use_bias=False)
+                #emb_in = feedforward(emb_in, [self.num_hidden, self.prembed_dim], scope="prembed", reuse=False)
                 #emb_in = tf.layers.dropout(emb_in, rate=self.drop_rate)
-                #emb_in = layer_norm(emb_in)
-            #emb_in = embedding_postprocessor(emb_in, max_position_embeddings=200)
+                #emb_in = layer_norm(emb_in, name="prembed")
+                emb_in = embedding_postprocessor(emb_in, max_position_embeddings=200)
             print("my_emb_dim", emb_in.get_shape().as_list()[-1])
             #emb_dim = tf.shape(emb_in)[-1]
             emb_dim = emb_in.get_shape().as_list()[-1]
@@ -81,9 +87,13 @@ class HSI_BERT(object):
             for i in range(self.max_depth):
                 name_scope = "Transformer_Encoder_"+str(i)
                 if i == 0:
-                    enc_embs, atten = transformer_encoder(emb_in, num_units=emb_dim,num_heads=self.num_head, num_hidden=self.num_hidden, dropout_rate=self.drop_rate, mask=masks, scope=name_scope)
+                    enc_embs, atten = transformer_encoder(emb_in, num_units=emb_dim,num_heads=self.num_head,
+                                                          num_hidden=self.num_hidden, dropout_rate=self.drop_rate,
+                                                          attention_dropout=self.attention_dropout,  mask=masks, scope=name_scope)
                 else:
-                    enc_embs, atten = transformer_encoder(enc_embs, num_units=emb_dim, num_heads=self.num_head,num_hidden=self.num_hidden, dropout_rate=self.drop_rate,mask=masks, scope=name_scope)
+                    enc_embs, atten = transformer_encoder(enc_embs, num_units=emb_dim, num_heads=self.num_head,
+                                                          num_hidden=self.num_hidden, dropout_rate=self.drop_rate,
+                                                          attention_dropout=self.attention_dropout, mask=masks, scope=name_scope)
                 attens.append(atten)
             #emb_x = tf.reshape(emb_in, [1, num_classes*num_support, self.im_height*self.im_width*self.channels])
             if self.pooling:
@@ -135,6 +145,9 @@ class HSI_BERT(object):
             if not finetune:
                 init = tf.global_variables_initializer()
                 self.sess.run(init)
+            else:
+                self.learning_rate = tf.convert_to_tensor(self.start_learning_rate)
+
         least_mean_loss = 10000
         bad_round = 0
         num_batches = len(y) // batch_size
@@ -211,6 +224,9 @@ class HSI_BERT(object):
             if not finetune:
                 init = tf.global_variables_initializer()
                 self.sess.run(init)
+            else:
+                self.learning_rate = tf.convert_to_tensor(self.start_learning_rate)
+
         least_mean_loss = 10000
         bad_round = 0
         num_batches = len(generator)
